@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Cart & Receipt Calculator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Touch Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- html2canvas for screenshot generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-full flex flex-col justify-between">
+
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-20">
+        <div class="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-basket-shopping text-xl"></i>
+                <h1 class="text-lg font-bold tracking-tight">Smart Cart Calculator</h1>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="openShareModal()" class="text-xs bg-indigo-500 hover:bg-indigo-700 active:bg-indigo-800 px-3 py-1.5 rounded-lg font-medium transition flex items-center space-x-1 shadow-sm">
+                    <i class="fa-solid fa-camera"></i>
+                    <span>Share Receipt</span>
+                </button>
+                <button onclick="clearAllItems()" class="text-xs bg-indigo-700 hover:bg-indigo-800 active:bg-indigo-900 px-3 py-1.5 rounded-lg font-medium transition flex items-center space-x-1 shadow-sm">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>Reset</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md w-full mx-auto p-4 flex-grow flex flex-col space-y-4 overflow-y-auto pb-32">
+        
+        <!-- Live Total Sticky Summary Card -->
+        <div class="bg-gradient-to-r from-indigo-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg flex items-center justify-between">
+            <div>
+                <p class="text-xs uppercase tracking-wider font-semibold text-indigo-100">Total Amount</p>
+                <div class="flex items-baseline space-x-1 mt-0.5">
+                    <span class="text-2xl font-bold" id="currencySymbol">₹</span>
+                    <span class="text-4xl font-extrabold tracking-tight" id="grandTotal">0.00</span>
+                </div>
+            </div>
+            <div class="text-right flex flex-col items-end space-y-2">
+                <span class="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm" id="itemCountBadge">0 items</span>
+                <button onclick="openShareModal()" class="text-xs bg-white text-indigo-600 font-bold px-3 py-1.5 rounded-xl shadow hover:bg-indigo-50 transition flex items-center space-x-1">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    <span>Export</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Add / Edit Item Form Card -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+            <h2 id="formTitle" class="text-sm font-semibold text-slate-700 mb-3 flex items-center space-x-2">
+                <i class="fa-solid fa-circle-plus text-indigo-600"></i>
+                <span>Add New Item</span>
+            </h2>
+            <form id="itemForm" onsubmit="handleFormSubmit(event)" class="space-y-3">
+                <input type="hidden" id="editIndex" value="-1">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Item Name</label>
+                    <input type="text" id="itemName" placeholder="e.g., Potato, Mango..." required
+                        class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base transition">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Price per Unit (₹)</label>
+                        <input type="number" id="itemPrice" step="any" placeholder="0.00" required min="0"
+                            class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base transition">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Quantity</label>
+                        <input type="number" id="itemQty" step="any" placeholder="1" required min="0.01" value="1"
+                            class="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-base transition">
+                    </div>
+                </div>
+                <div class="flex space-x-2 pt-1">
+                    <button type="submit" id="submitBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition flex items-center justify-center space-x-2 text-base">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Add to List</span>
+                    </button>
+                    <button type="button" id="cancelEditBtn" onclick="resetForm()" class="hidden bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 px-4 rounded-xl transition text-base">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="flex flex-col space-y-2">
+            <div class="flex justify-between items-center px-1">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Goods List</h3>
+                <span class="text-xs text-slate-400" id="listStatusHint">Tap item to edit</span>
+            </div>
+            
+            <div id="goodsListContainer" class="space-y-2.5">
+                <!-- Empty State -->
+                <div id="emptyState" class="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200 p-6">
+                    <div class="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3 text-lg">
+                        <i class="fa-solid fa-basket-shopping"></i>
+                    </div>
+                    <p class="text-sm font-medium text-slate-600">Your list is empty</p>
+                    <p class="text-xs text-slate-400 mt-1">Add items like potato 20 or mango 10 above to start calculating totals automatically.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Share Receipt Modal Preview -->
+    <div id="shareModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl flex flex-col space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-receipt text-indigo-600"></i>
+                    <span>Receipt Preview</span>
+                </h3>
+                <button onclick="closeShareModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Printable Receipt Card -->
+            <div id="receiptCard" class="bg-slate-900 text-slate-100 p-6 rounded-2xl shadow-inner font-mono text-sm space-y-4 border border-slate-800">
+                <div class="text-center space-y-1 border-b border-slate-800 pb-4">
+                    <div class="inline-flex p-2 bg-indigo-600 rounded-xl text-white mb-1">
+                        <i class="fa-solid fa-basket-shopping text-base"></i>
+                    </div>
+                    <h2 class="font-bold text-base tracking-wide text-white font-sans">SMART SHOPPING CART</h2>
+                    <p class="text-xs text-slate-400 font-sans" id="receiptDate"></p>
+                </div>
+
+                <div class="space-y-2 py-2" id="receiptItemsList">
+                    <!-- Dynamic Receipt Items -->
+                </div>
+
+                <div class="border-t border-slate-800 pt-3 space-y-1.5 font-sans">
+                    <div class="flex justify-between text-xs text-slate-400">
+                        <span>Total Items</span>
+                        <span id="receiptItemCount">0</span>
+                    </div>
+                    <div class="flex justify-between text-base font-bold text-white">
+                        <span>Grand Total</span>
+                        <span id="receiptGrandTotal" class="text-indigo-400">₹0.00</span>
+                    </div>
+                </div>
+
+                <div class="text-center pt-2 border-t border-slate-800/60">
+                    <p class="text-[10px] text-slate-500">Generated via Smart Cart Calculator</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col space-y-2 pt-2">
+                <button onclick="downloadReceiptImage()" id="downloadBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center space-x-2 text-sm shadow-md">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Download Image / Screenshot</span>
+                </button>
+                <button onclick="shareReceiptNative()" id="shareNativeBtn" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center space-x-2 text-sm shadow-md">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    <span>Share via WhatsApp / Apps</span>
+                </button>
+                <button onclick="closeShareModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl transition text-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Modal -->
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-full shadow-xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center space-x-2">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMessage">Action completed</span>
+    </div>
+
+    <script>
+        // State Management
+        let goodsList = JSON.parse(localStorage.getItem('smart_calc_goods')) || [];
+
+        // Initialize App on Load
+        window.onload = function() {
+            renderList();
+        };
+
+        // Format Currency Helper
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        // Save to LocalStorage
+        function saveState() {
+            localStorage.setItem('smart_calc_goods', JSON.stringify(goodsList));
+        }
+
+        // Handle Form Submit (Add or Update)
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('itemName').value.trim();
+            const price = parseFloat(document.getElementById('itemPrice').value);
+            const qty = parseFloat(document.getElementById('itemQty').value);
+            const editIndex = parseInt(document.getElementById('editIndex').value);
+
+            if (!name || isNaN(price) || isNaN(qty)) return;
+
+            if (editIndex === -1) {
+                // Add new item
+                goodsList.unshift({ id: Date.now(), name, price, qty });
+                showToast('Item added successfully');
+            } else {
+                // Update existing item
+                goodsList[editIndex].name = name;
+                goodsList[editIndex].price = price;
+                goodsList[editIndex].qty = qty;
+                showToast('Item updated successfully');
+                resetForm();
+            }
+
+            // Clear inputs and re-render
+            document.getElementById('itemName').value = '';
+            document.getElementById('itemPrice').value = '';
+            document.getElementById('itemQty').value = '1';
+            document.getElementById('itemName').focus();
+
+            saveState();
+            renderList();
+        }
+
+        function renderList() {
+            const container = document.getElementById('goodsListContainer');
+            const emptyState = document.getElementById('emptyState');
+            const grandTotalEl = document.getElementById('grandTotal');
+            const itemCountBadge = document.getElementById('itemCountBadge');
+
+            if (goodsList.length === 0) {
+                emptyState.style.display = 'block';
+                const cards = container.querySelectorAll('.item-card');
+                cards.forEach(card => card.remove());
+                grandTotalEl.textContent = '0.00';
+                itemCountBadge.textContent = '0 items';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            const existingCards = container.querySelectorAll('.item-card');
+            existingCards.forEach(card => card.remove());
+
+            let totalSum = 0;
+            let totalCount = goodsList.length;
+
+            goodsList.forEach((item, index) => {
+                const itemTotal = item.price * item.qty;
+                totalSum += itemTotal;
+
+                const card = document.createElement('div');
+                card.className = 'item-card bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between transition active:scale-[0.99]';
+                card.innerHTML = `
+                    <div class="flex-grow pr-3 cursor-pointer" onclick="editItem(${index})">
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-semibold text-slate-800 text-base">${escapeHtml(item.name)}</h4>
+                        </div>
+                        <div class="flex items-center space-x-2 mt-1 text-xs text-slate-500">
+                            <span>₹${formatCurrency(item.price)} × ${item.qty}</span>
+                            <span class="text-slate-300">•</span>
+                            <span class="font-medium text-indigo-600">Unit</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <div class="text-right">
+                            <span class="text-base font-bold text-slate-900">₹${formatCurrency(itemTotal)}</span>
+                        </div>
+                        <div class="flex items-center space-x-1 border-l border-slate-100 pl-2">
+                            <button onclick="editItem(${index})" class="p-2 text-slate-400 hover:text-indigo-600 rounded-lg transition" title="Edit">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            <button onclick="deleteItem(event, ${index})" class="p-2 text-slate-400 hover:text-rose-500 rounded-lg transition" title="Delete">
+                                <i class="fa-solid fa-trash text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            grandTotalEl.textContent = formatCurrency(totalSum);
+            itemCountBadge.textContent = `${totalCount} item${totalCount === 1 ? '' : 's'}`;
+        }
+
+        function editItem(index) {
+            const item = goodsList[index];
+            document.getElementById('itemName').value = item.name;
+            document.getElementById('itemPrice').value = item.price;
+            document.getElementById('itemQty').value = item.qty;
+            document.getElementById('editIndex').value = index;
+
+            document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-indigo-600"></i><span>Edit Item</span>';
+            document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-check"></i><span>Update Item</span>';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.getElementById('itemName').focus();
+        }
+
+        function resetForm() {
+            document.getElementById('itemForm').reset();
+            document.getElementById('editIndex').value = '-1';
+            document.getElementById('itemQty').value = '1';
+            document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-circle-plus text-indigo-600"></i><span>Add New Item</span>';
+            document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-plus"></i><span>Add to List</span>';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+        }
+
+        function deleteItem(e, index) {
+            e.stopPropagation();
+            goodsList.splice(index, 1);
+            saveState();
+            renderList();
+            showToast('Item deleted');
+            const editIndex = parseInt(document.getElementById('editIndex').value);
+            if (editIndex === index) {
+                resetForm();
+            }
+        }
+
+        function clearAllItems() {
+            if (goodsList.length === 0) return;
+            if (confirm('Are you sure you want to clear the entire list?')) {
+                goodsList = [];
+                saveState();
+                resetForm();
+                renderList();
+                showToast('List cleared');
+            }
+        }
+
+        function openShareModal() {
+            if (goodsList.length === 0) {
+                showToast('Add items to generate a receipt');
+                return;
+            }
+
+            const now = new Date();
+            document.getElementById('receiptDate').textContent = now.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) + ', ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const itemsContainer = document.getElementById('receiptItemsList');
+            itemsContainer.innerHTML = '';
+
+            let totalSum = 0;
+            goodsList.forEach(item => {
+                const itemTotal = item.price * item.qty;
+                totalSum += itemTotal;
+                const row = document.createElement('div');
+                row.className = 'flex justify-between items-start text-xs border-b border-slate-800/50 pb-1.5';
+                row.innerHTML = `
+                    <div class="pr-2">
+                        <span class="text-white font-medium">${escapeHtml(item.name)}</span>
+                        <div class="text-[10px] text-slate-400">₹${formatCurrency(item.price)} × ${item.qty}</div>
+                    </div>
+                    <span class="text-indigo-400 font-mono font-semibold">₹${formatCurrency(itemTotal)}</span>
+                `;
+                itemsContainer.appendChild(row);
+            });
+
+            document.getElementById('receiptItemCount').textContent = goodsList.length;
+            document.getElementById('receiptGrandTotal').textContent = '₹' + formatCurrency(totalSum);
+
+            if (navigator.canShare && navigator.canShare({ files: [] })) {
+                document.getElementById('shareNativeBtn').classList.remove('hidden');
+            } else {
+                document.getElementById('shareNativeBtn').classList.add('hidden');
+            }
+
+            document.getElementById('shareModal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        async function downloadReceiptImage() {
+            const receiptCard = document.getElementById('receiptCard');
+            const downloadBtn = document.getElementById('downloadBtn');
+            downloadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Generating Image...</span>';
+            downloadBtn.disabled = true;
+
+            try {
+                const canvas = await html2canvas(receiptCard, {
+                    scale: 2,
+                    backgroundColor: '#0f172a',
+                    logging: false
+                });
+
+                const image = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = image;
+                link.download = `Shopping-Receipt-${Date.now()}.png`;
+                link.click();
+
+                showToast('Receipt downloaded successfully');
+            } catch (err) {
+                console.error(err);
+                showToast('Failed to generate image');
+            } finally {
+                downloadBtn.innerHTML = '<i class="fa-solid fa-download"></i><span>Download Image / Screenshot</span>';
+                downloadBtn.disabled = false;
+            }
+        }
+
+        async function shareReceiptNative() {
+            const receiptCard = document.getElementById('receiptCard');
+            try {
+                const canvas = await html2canvas(receiptCard, {
+                    scale: 2,
+                    backgroundColor: '#0f172a',
+                    logging: false
+                });
+
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], 'shopping-receipt.png', { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            title: 'Shopping Receipt',
+                            text: 'Here is my shopping list breakdown and total!',
+                            files: [file]
+                        });
+                    } else {
+                        showToast('Sharing files not supported on this browser');
+                    }
+                }, 'image/png');
+            } catch (err) {
+                console.error(err);
+                showToast('Sharing failed');
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.textContent = message;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
